@@ -114,12 +114,7 @@ contract DecentralisedLottery{
             return 0;
         }
     }
-    
-    function currentTime() view external onlyOwner returns(uint){
-        // Function to help owner set timeToLottery
-        return now;
-    }
-    
+
     function getParticipatorInfo() view public returns (address senderAddr, uint choice, uint timeOfBet, bool profitReceived){
         // Each participant can view his and only his info!
         uint _userID = addrToID[msg.sender];
@@ -131,10 +126,11 @@ contract DecentralisedLottery{
         }
     }
 
-    function getParticipatorInfo(uint id) view external onlyOwner returns (address senderAddr, uint choice, uint timeOfBet, bool profitReceived){
-        return (participatorInfo[id].sender, participatorInfo[id].choice, participatorInfo[id].bettingTime, participatorInfo[id].profitReceived);
+    function currentTime() view external onlyOwner returns(uint){
+        // Function to help owner set timeToLottery
+        return now;
     }
-    
+
     function setTimeToLottery(uint _timeToLottery) external onlyOwner{
         // Function to set when the lottery ends!
         timeToLottery = _timeToLottery;
