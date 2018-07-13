@@ -1,6 +1,6 @@
 pragma solidity ^0.4.24;
 
-contract NYC_BD_Lottery{
+contract DecentralisedLottery{
 	address owner;
 	uint public randomChoice;
 	
