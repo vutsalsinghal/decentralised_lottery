@@ -1,1 +1,2 @@
-# decentralised_lottery
+# Decentralised Lottery
+
