@@ -1,13 +1,23 @@
 pragma solidity ^0.4.24;
 
+import "./safeMath.sol";
+
+/**
+ * @title DecentralisedLottery
+ * @dev A fully decentralised lottery
+ */
 contract DecentralisedLottery{
+    
+    // library declaration
+    using SafeMath for uint256;
+    
     address owner;
     uint public randomChoice;
     
     uint public lastParticipator;
-    uint public timeToLottery;          // time when lottery ends (set by owner)
+    uint public timeToLottery;                                                  // time when lottery ends (set by owner)
     uint public profitAmt;
-    uint public totWinners;            // total no.of lottery winners!
+    uint public totWinners;                                                     // total no.of lottery winners!
     uint[] public choices;
     
     uint public buyIn;
@@ -46,10 +56,11 @@ contract DecentralisedLottery{
     function placeBet(uint _choice) public payable{
         // Function to place bet (choose an option)
         require(now < timeToLottery, "Lottery has ended. No more bets can be placed untill timeToLottery is renewed by owner");
-        require(msg.value >= buyIn+participationFee, "Amount < (Buy-in + Participation fee)");
+        require(msg.value >= buyIn.add(participationFee), "Amount < (Buy-in + Participation fee)");
         require(alreadyApproved[msg.sender] != true, "You've already placed your bet!");
         
-        uint _participatorNo = ++ lastParticipator;
+        lastParticipator = lastParticipator.add(1);                             // using safemath syntax
+        uint _participatorNo = lastParticipator;
         if (_choice == choices[0]){
             participatorInfo[_participatorNo].choice = choices[0];
         } else if (_choice == choices[1]){
@@ -57,7 +68,7 @@ contract DecentralisedLottery{
         }else if (_choice == choices[2]){
             participatorInfo[_participatorNo].choice = choices[2];
         }else{
-            lastParticipator -= 1;
+            lastParticipator = lastParticipator.sub(1);                         // using safemath syntax
             require(1==2, "Choose valid option!");
         }
             
@@ -78,7 +89,7 @@ contract DecentralisedLottery{
         uint _userID = addrToID[msg.sender];
         require(!participatorInfo[_userID].profitReceived, "You've already received the profits!");
         if (participatorInfo[_userID].choice == randomChoice){
-            if (participatorInfo[_userID].bettingTime < timeToLottery){ //Dont disburse profits to those who made bet after timeToLottery
+            if (participatorInfo[_userID].bettingTime < timeToLottery){         // Dont disburse profits to those who made bet after timeToLottery
                 (msg.sender).transfer(profitAmt);
                 participatorInfo[_userID].profitReceived = true;
                 alreadyApproved[msg.sender] = false;
@@ -90,20 +101,20 @@ contract DecentralisedLottery{
         // Internal function to calculate the profits each winner will receive!
         require(randomChoice != 0, "Owner has not yet set the 'winning choice'!");
         for (uint i=1; i<lastParticipator+1; i++){
-            if (participatorInfo[i].bettingTime < timeToLottery){ // Dont include users who made bet after timeToLottery
+            if (participatorInfo[i].bettingTime < timeToLottery){               // Dont include users who made bet after timeToLottery
                 if (participatorInfo[i].choice == randomChoice){
-                    totWinners += 1;
+                    totWinners = totWinners.add(1);                             // using safemath syntax
                 }
             }
         }
         if (totWinners != 0){
-            profitAmt = totalPot() / totWinners;
+            profitAmt = totalPot().div(totWinners);                             // using safemath syntax
         }
     }
     
     function totalPot() view public returns(uint){
         // Function to view value in total lottery pot (in wei)
-        return buyIn * lastParticipator;
+        return buyIn.mul(lastParticipator);
     }
 
     function timeLeft() view external returns(uint time_left){
@@ -114,7 +125,12 @@ contract DecentralisedLottery{
             return 0;
         }
     }
-
+    
+    function currentTime() view external onlyOwner returns(uint){
+        // Function to help owner set timeToLottery
+        return now;
+    }
+    
     function getParticipatorInfo() view public returns (address senderAddr, uint choice, uint timeOfBet, bool profitReceived){
         // Each participant can view his and only his info!
         uint _userID = addrToID[msg.sender];
@@ -126,11 +142,10 @@ contract DecentralisedLottery{
         }
     }
 
-    function currentTime() view external onlyOwner returns(uint){
-        // Function to help owner set timeToLottery
-        return now;
+    function getParticipatorInfo(uint id) view external onlyOwner returns (address senderAddr, uint choice, uint timeOfBet, bool profitReceived){
+        return (participatorInfo[id].sender, participatorInfo[id].choice, participatorInfo[id].bettingTime, participatorInfo[id].profitReceived);
     }
-
+    
     function setTimeToLottery(uint _timeToLottery) external onlyOwner{
         // Function to set when the lottery ends!
         timeToLottery = _timeToLottery;
@@ -140,10 +155,7 @@ contract DecentralisedLottery{
             addrToID[participatorInfo[i].sender] = 0;
             alreadyApproved[participatorInfo[i].sender] = false;
 
-            participatorInfo[i].sender = 0x0;
-            participatorInfo[i].choice = 0;
-            participatorInfo[i].bettingTime = 0;
-            participatorInfo[i].profitReceived = false;
+            delete participatorInfo[i];
         }
         
         randomChoice = 0;
@@ -155,6 +167,9 @@ contract DecentralisedLottery{
         // Function to set the "lottery winning" choice randomly using external source (eg. Oracles)
         require(now > timeToLottery);
         randomChoice = _rndChoice;
+        if (profitAmt == 0){
+            calProfit(); 
+        }
     }
     
     function setAmt(uint _buyIn, uint _participationFee) external onlyOwner{
