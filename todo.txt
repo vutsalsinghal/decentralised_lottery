@@ -1,2 +1,2 @@
-- use SafeMath
+- [done] use SafeMath
 - use float for calculating profitAmt
