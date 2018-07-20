@@ -1,2 +1,3 @@
 - [done] use SafeMath
 - use float for calculating profitAmt
+- [done] added encashDuration concept
