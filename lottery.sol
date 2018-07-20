@@ -4,24 +4,28 @@ import "./safeMath.sol";
 
 /**
  * @title DecentralisedLottery
- * @dev A fully decentralised lottery
+ * @notice This is a type of coin flip lottery (instead of Lotto lottery).
+           But instead of binary coin-flip, it can ternary, quaternary, ..., etc.
+ * @dev A completely decentralised lottery
  */
-contract DecentralisedLottery{
-    
+ contract DecentralisedLottery{
+
     // library declaration
     using SafeMath for uint256;
     
+    // ------------------ Variables -----------------\\
+    
     address owner;
-    uint public randomChoice;
-    
-    uint public lastParticipator;
-    uint public timeToLottery;                                                  // time when lottery ends (set by owner)
-    uint public profitAmt;
-    uint public totWinners;                                                     // total no.of lottery winners!
-    uint[] public choices;
-    
-    uint public buyIn;
-    uint public participationFee;
+    uint public winningChoice;                                       // randomly generated choice (after lottery ends)
+    uint public timeToLottery;                                       // time when lottery ends (set by owner)
+    uint public encashDuration;                                      // duration (after lottery ended) during which 
+                                                                          // participants can get their profits (default: 1 day)
+    uint public lastParticipator;                                    // keep track of total participants
+    uint public totWinners;                                          // total no.of lottery winners!
+    uint public profitAmt;                                           // (total pot)/(total winners)
+    uint[] public choices;                                           // options from which participants can choose
+    uint public buyIn;                                               // minimum amount to be eligible to participate
+    uint public participationFee;                                    // owners cut
     
     struct Participator{
         address sender;
@@ -30,35 +34,60 @@ contract DecentralisedLottery{
         bool profitReceived;
     }
     
+    // ------------------ Mappings -----------------\\
+    
     mapping (uint => Participator) participatorInfo;
     mapping (address => uint) addrToID;
     mapping (address => bool) alreadyApproved;
     
+    // ------------------ Modifiers -----------------\\
     modifier onlyOwner {
         require(msg.sender == owner);
         _;
     }
+
+    modifier lotteryOnGoing {
+        require(now < timeToLottery);
+        _;
+    }
+
+    modifier lotteryEnded {
+        require(now >= timeToLottery);
+        _;
+    }
+
+    modifier encashDurationOngoing {
+        require(now >= timeToLottery && now < encashDuration);
+        _;
+    }
+
+    modifier encashDurationEnded {
+        require(now >= encashDuration);
+        _;
+    }
+    
+    // ------------------ Constructor -----------------\\
     
     constructor() public{
         owner = msg.sender;
-        randomChoice = 0;
-        
+        winningChoice = 0;
+        timeToLottery = now;
+        encashDuration = now.add(24 hours);
         lastParticipator = 0;
-        timeToLottery = now; //default
-        profitAmt = 0;
         totWinners = 0;
+        profitAmt = 0;
         choices = [1,2,3];
-        
         buyIn = 0.5 ether;
         participationFee = 0.0001 ether;
     }
 
-    function placeBet(uint _choice) public payable{
-        // Function to place bet (choose an option)
-        require(now < timeToLottery, "Lottery has ended. No more bets can be placed untill timeToLottery is renewed by owner");
+    // ------------------ Public/External functions -----------------\\
+    
+    function placeBet(uint _choice) public lotteryOnGoing payable{
+    // Function to place bet (choose an option)
         require(msg.value >= buyIn.add(participationFee), "Amount < (Buy-in + Participation fee)");
         require(alreadyApproved[msg.sender] != true, "You've already placed your bet!");
-        
+
         lastParticipator = lastParticipator.add(1);                             // using safemath syntax
         uint _participatorNo = lastParticipator;
         if (_choice == choices[0]){
@@ -69,9 +98,9 @@ contract DecentralisedLottery{
             participatorInfo[_participatorNo].choice = choices[2];
         }else{
             lastParticipator = lastParticipator.sub(1);                         // using safemath syntax
-            require(1==2, "Choose valid option!");
+            require(1==2, "Choose valid option!");                              // Throw error
         }
-            
+
         participatorInfo[_participatorNo].sender = msg.sender;
         participatorInfo[_participatorNo].bettingTime = now;
         participatorInfo[_participatorNo].profitReceived = false;
@@ -79,60 +108,8 @@ contract DecentralisedLottery{
         alreadyApproved[msg.sender] = true;
     }
 
-    function getProfits() public{
-        // When the lottery ends, winners can call this function to receive their winnings
-        require(alreadyApproved[msg.sender], 'You did not participate in the lottery');
-        
-        if (profitAmt == 0){
-               calProfit(); 
-        }
-        uint _userID = addrToID[msg.sender];
-        require(!participatorInfo[_userID].profitReceived, "You've already received the profits!");
-        if (participatorInfo[_userID].choice == randomChoice){
-            if (participatorInfo[_userID].bettingTime < timeToLottery){         // Dont disburse profits to those who made bet after timeToLottery
-                (msg.sender).transfer(profitAmt);
-                participatorInfo[_userID].profitReceived = true;
-                alreadyApproved[msg.sender] = false;
-            }
-       }
-    }
-    
-    function calProfit() internal{
-        // Internal function to calculate the profits each winner will receive!
-        require(randomChoice != 0, "Owner has not yet set the 'winning choice'!");
-        for (uint i=1; i<lastParticipator+1; i++){
-            if (participatorInfo[i].bettingTime < timeToLottery){               // Dont include users who made bet after timeToLottery
-                if (participatorInfo[i].choice == randomChoice){
-                    totWinners = totWinners.add(1);                             // using safemath syntax
-                }
-            }
-        }
-        if (totWinners != 0){
-            profitAmt = totalPot().div(totWinners);                             // using safemath syntax
-        }
-    }
-    
-    function totalPot() view public returns(uint){
-        // Function to view value in total lottery pot (in wei)
-        return buyIn.mul(lastParticipator);
-    }
-
-    function timeLeft() view external returns(uint time_left){
-        // Function to display time left until lottery (in seconds)
-        if (now < timeToLottery){
-            return timeToLottery - now;
-        }else{
-            return 0;
-        }
-    }
-    
-    function currentTime() view external onlyOwner returns(uint){
-        // Function to help owner set timeToLottery
-        return now;
-    }
-    
     function getParticipatorInfo() view public returns (address senderAddr, uint choice, uint timeOfBet, bool profitReceived){
-        // Each participant can view his and only his info!
+    // Each participant can view his and only his info!
         uint _userID = addrToID[msg.sender];
         if (msg.sender == participatorInfo[_userID].sender){
             return (participatorInfo[_userID].sender, participatorInfo[_userID].choice, participatorInfo[_userID].bettingTime, participatorInfo[_userID].profitReceived);
@@ -142,14 +119,74 @@ contract DecentralisedLottery{
         }
     }
 
+    function getProfits() public encashDurationOngoing{
+    // When the lottery ends, winners can call this function to receive their winnings
+        require(alreadyApproved[msg.sender], 'You did not participate in the lottery');
+
+        if (profitAmt == 0) calProfit();                                        // Just making sure! (already called for the 1st time inside setWiningChoice() by owner)
+         
+        uint _userID = addrToID[msg.sender];
+        require(!participatorInfo[_userID].profitReceived, "You've already received the profits!");
+        if (participatorInfo[_userID].choice == winningChoice){
+            if (participatorInfo[_userID].bettingTime < timeToLottery){         // Dont disburse profits to those who made bet after timeToLottery
+                (msg.sender).transfer(profitAmt);
+                participatorInfo[_userID].profitReceived = true;
+                alreadyApproved[msg.sender] = false;
+            }
+        }
+    }
+    
+    function totalPot() view public returns(uint){
+    // Function to view value in total lottery pot (in wei)
+        return buyIn.mul(lastParticipator);
+    }
+
+    function timeLeft() view external lotteryOnGoing returns(uint time_left){
+    // Function to display time (in seconds) left until lottery ends
+        if (now < timeToLottery){
+            return timeToLottery.sub(now);
+        }else{
+            return 0;
+        }
+    }
+
+    function timeLeftToEncash() view external encashDurationOngoing returns(uint time_left){
+        // Function to display time (in seconds) left until participants can get their profits
+        if (now < encashDuration){
+            return encashDuration.sub(now);
+        }else{
+            return 0;
+        }
+    }
+
+    // ------------------ OnlyOwner/Internal functions -----------------\\
+    
+    function calProfit() internal{
+    // Internal function to calculate the profits each winner will receive!
+        require(winningChoice != 0, "Owner has not yet set the 'winning choice'!");
+        for (uint i=1; i<lastParticipator+1; i++){
+            if (participatorInfo[i].bettingTime < timeToLottery){               // Dont include users who made bet after timeToLottery
+                if (participatorInfo[i].choice == winningChoice){
+                    totWinners = totWinners.add(1);                             // using safemath syntax
+                }
+            }
+        }
+        if (totWinners != 0) profitAmt = totalPot().div(totWinners);            // using safemath syntax
+    }
+
+    function currentTime() view external onlyOwner returns(uint){
+    // Function to help owner set timeToLottery
+        return now;
+    }
+
     function getParticipatorInfo(uint id) view external onlyOwner returns (address senderAddr, uint choice, uint timeOfBet, bool profitReceived){
         return (participatorInfo[id].sender, participatorInfo[id].choice, participatorInfo[id].bettingTime, participatorInfo[id].profitReceived);
     }
-    
-    function setTimeToLottery(uint _timeToLottery) external onlyOwner{
-        // Function to set when the lottery ends!
+
+    function setTimeToLottery(uint _timeToLottery) external onlyOwner lotteryEnded{
+    // Function to (re)set "when" the lottery ends!
         timeToLottery = _timeToLottery;
-        
+            
         // Reset values
         for (uint i=1; i<lastParticipator+1; i++){
             addrToID[participatorInfo[i].sender] = 0;
@@ -157,39 +194,45 @@ contract DecentralisedLottery{
 
             delete participatorInfo[i];
         }
-        
-        randomChoice = 0;
+            
+        winningChoice = 0;
         totWinners = 0;
         lastParticipator = 0;
     }
-    
-    function setWiningChoice(uint _rndChoice) external onlyOwner{
-        // Function to set the "lottery winning" choice randomly using external source (eg. Oracles)
-        require(now > timeToLottery);
-        randomChoice = _rndChoice;
-        if (profitAmt == 0){
-            calProfit(); 
-        }
+        
+    function setWiningChoice(uint _randomChoice) external onlyOwner encashDurationOngoing{
+    // Function to set the "lottery winning" choice randomly using external source (eg. Oracles)
+        winningChoice = _randomChoice;
+        encashDuration = timeToLottery.add(24 hours);                           // start the encash duration
+
+        // call function to calculate profits
+        if (profitAmt == 0) calProfit();
     }
-    
-    function setAmt(uint _buyIn, uint _participationFee) external onlyOwner{
-        // set buy-in and participation fee of the user
+
+    function setEncashDuration(uint _newDuration) external onlyOwner encashDurationOngoing{
+    // Function to change encash duration (if need be)      
+        encashDuration = _newDuration;
+    }
+        
+    function transferParticipationFee() external onlyOwner lotteryEnded{
+    // transfer participation fee to owner
+        uint _amt = participationFee * lastParticipator;
+        owner.transfer(_amt);
+    }
+
+    function setAmt(uint _buyIn, uint _participationFee) external onlyOwner lotteryEnded{
+    // set buy-in and participation fee of the user
         buyIn = _buyIn;
         participationFee = _participationFee;
     }
 
-    function transferParticipationFee() external onlyOwner{
-        // transfer participation fee to owner
-        uint _amt = participationFee * lastParticipator;
-        owner.transfer(_amt);
-    }
-    
-    function transferEther(uint amount) external onlyOwner{
-        // transfer ether to owner
+    function transferEther(uint amount) external onlyOwner lotteryEnded{
+    // transfer ether to owner
         owner.transfer(amount);
     }
 
     function kill() public onlyOwner{
+    // destroy contract
         selfdestruct(owner);
     }
 }
