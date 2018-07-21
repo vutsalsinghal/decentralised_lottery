@@ -199,6 +199,7 @@ import "./safeMath.sol";
         winningChoice = 0;
         totWinners = 0;
         lastParticipator = 0;
+        profitAmt = 0;
     }
         
     function setWiningChoice(uint _randomChoice) external onlyOwner encashDurationOngoing{
