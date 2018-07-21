@@ -72,7 +72,7 @@ import "./safeMath.sol";
         owner = msg.sender;
         winningChoice = 0;
         timeToLottery = now;
-        encashDuration = now.add(24 hours);
+        encashDuration = now;
         lastParticipator = 0;
         totWinners = 0;
         profitAmt = 0;
@@ -183,7 +183,7 @@ import "./safeMath.sol";
         return (participatorInfo[id].sender, participatorInfo[id].choice, participatorInfo[id].bettingTime, participatorInfo[id].profitReceived);
     }
 
-    function setTimeToLottery(uint _timeToLottery) external onlyOwner lotteryEnded{
+    function setTimeToLottery(uint _timeToLottery) external onlyOwner encashDurationEnded{
     // Function to (re)set "when" the lottery ends!
         timeToLottery = _timeToLottery;
             
