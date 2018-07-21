@@ -186,6 +186,7 @@ import "./safeMath.sol";
     function setTimeToLottery(uint _timeToLottery) external onlyOwner encashDurationEnded{
     // Function to (re)set "when" the lottery ends!
         timeToLottery = _timeToLottery;
+        encashDuration = _timeToLottery.add(24 hours);
             
         // Reset values
         for (uint i=1; i<lastParticipator+1; i++){
@@ -203,7 +204,7 @@ import "./safeMath.sol";
     function setWiningChoice(uint _randomChoice) external onlyOwner encashDurationOngoing{
     // Function to set the "lottery winning" choice randomly using external source (eg. Oracles)
         winningChoice = _randomChoice;
-        encashDuration = timeToLottery.add(24 hours);                           // start the encash duration
+        encashDuration = now.add(24 hours);                                     // start the encash duration
 
         // call function to calculate profits
         if (profitAmt == 0) calProfit();
@@ -226,7 +227,7 @@ import "./safeMath.sol";
         participationFee = _participationFee;
     }
 
-    function transferEther(uint amount) external onlyOwner lotteryEnded{
+    function transferEther(uint amount) external onlyOwner encashDurationEnded{
     // transfer ether to owner
         owner.transfer(amount);
     }
