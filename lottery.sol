@@ -17,7 +17,8 @@ import "./safeMath.sol";
     
     address owner;
     uint public winningChoice;                                       // randomly generated choice (after lottery ends)
-    uint public timeToLottery;                                       // time when lottery ends (set by owner)
+    bool winningChoiceSet;
+    uint public timeToDraw;                                          // time when lottery ends (set by owner)
     uint public encashDuration;                                      // duration (after lottery ended) during which 
                                                                           // participants can get their profits (default: 1 day)
     uint public lastParticipator;                                    // keep track of total participants
@@ -47,17 +48,17 @@ import "./safeMath.sol";
     }
 
     modifier lotteryOnGoing {
-        require(now < timeToLottery);
+        require(now < timeToDraw);
         _;
     }
 
     modifier lotteryEnded {
-        require(now >= timeToLottery);
+        require(now >= timeToDraw);
         _;
     }
 
     modifier encashDurationOngoing {
-        require(now >= timeToLottery && now < encashDuration);
+        require(now >= timeToDraw && now < encashDuration);
         _;
     }
 
@@ -71,7 +72,8 @@ import "./safeMath.sol";
     constructor() public{
         owner = msg.sender;
         winningChoice = 0;
-        timeToLottery = now;
+        winningChoiceSet = false;
+        timeToDraw = now;
         encashDuration = now;
         lastParticipator = 0;
         totWinners = 0;
@@ -128,7 +130,7 @@ import "./safeMath.sol";
         uint _userID = addrToID[msg.sender];
         require(!participatorInfo[_userID].profitReceived, "You've already received the profits!");
         if (participatorInfo[_userID].choice == winningChoice){
-            if (participatorInfo[_userID].bettingTime < timeToLottery){         // Dont disburse profits to those who made bet after timeToLottery
+            if (participatorInfo[_userID].bettingTime < timeToDraw){         // Dont disburse profits to those who made bet after timeToDraw
                 (msg.sender).transfer(profitAmt);
                 participatorInfo[_userID].profitReceived = true;
                 alreadyApproved[msg.sender] = false;
@@ -143,8 +145,8 @@ import "./safeMath.sol";
 
     function timeLeft() view external lotteryOnGoing returns(uint time_left){
     // Function to display time (in seconds) left until lottery ends
-        if (now < timeToLottery){
-            return timeToLottery.sub(now);
+        if (now < timeToDraw){
+            return timeToDraw.sub(now);
         }else{
             return 0;
         }
@@ -165,7 +167,7 @@ import "./safeMath.sol";
     // Internal function to calculate the profits each winner will receive!
         require(winningChoice != 0, "Owner has not yet set the 'winning choice'!");
         for (uint i=1; i<lastParticipator+1; i++){
-            if (participatorInfo[i].bettingTime < timeToLottery){               // Dont include users who made bet after timeToLottery
+            if (participatorInfo[i].bettingTime < timeToDraw){               // Dont include users who made bet after timeToDraw
                 if (participatorInfo[i].choice == winningChoice){
                     totWinners = totWinners.add(1);                             // using safemath syntax
                 }
@@ -175,7 +177,7 @@ import "./safeMath.sol";
     }
 
     function currentTime() view external onlyOwner returns(uint){
-    // Function to help owner set timeToLottery
+    // Helper function to set timeToDraw
         return now;
     }
 
@@ -183,10 +185,22 @@ import "./safeMath.sol";
         return (participatorInfo[id].sender, participatorInfo[id].choice, participatorInfo[id].bettingTime, participatorInfo[id].profitReceived);
     }
 
-    function setTimeToLottery(uint _timeToLottery) external onlyOwner encashDurationEnded{
+    function setWiningChoice(uint _randomChoice) external onlyOwner encashDurationOngoing{
+    // Function to set the "lottery winning" choice randomly using external source (eg. Oracles)
+        require(winningChoiceSet != true);                                      // Check if winning choice is not already set!
+
+        winningChoice = _randomChoice;
+        winningChoiceSet = true;
+        encashDuration = now.add(24 hours);                                     // start the encash duration
+
+        // call function to calculate profits
+        if (profitAmt == 0) calProfit();
+    }
+
+    function setTimeToDraw(uint _timeToDraw) external onlyOwner encashDurationEnded{
     // Function to (re)set "when" the lottery ends!
-        timeToLottery = _timeToLottery;
-        encashDuration = _timeToLottery.add(24 hours);
+        timeToDraw = _timeToDraw;
+        encashDuration = _timeToDraw.add(24 hours);
             
         // Reset values
         for (uint i=1; i<lastParticipator+1; i++){
@@ -197,18 +211,10 @@ import "./safeMath.sol";
         }
             
         winningChoice = 0;
+        winningChoiceSet = false;
         totWinners = 0;
         lastParticipator = 0;
         profitAmt = 0;
-    }
-        
-    function setWiningChoice(uint _randomChoice) external onlyOwner encashDurationOngoing{
-    // Function to set the "lottery winning" choice randomly using external source (eg. Oracles)
-        winningChoice = _randomChoice;
-        encashDuration = now.add(24 hours);                                     // start the encash duration
-
-        // call function to calculate profits
-        if (profitAmt == 0) calProfit();
     }
 
     function setEncashDuration(uint _newDuration) external onlyOwner encashDurationOngoing{
