@@ -3,10 +3,11 @@ pragma solidity ^0.4.24;
 import "./safeMath.sol";
 
 /**
- * @title DecentralisedLottery
- * @notice This is a type of coin flip lottery (instead of Lotto lottery).
-           But instead of binary coin-flip, it can ternary, quaternary, ..., etc.
- * @dev A completely decentralised lottery
+ * @title       - DecentralisedLottery
+ * @author      - Vutsal Singhal <vutsalsinghal[at]gmail[dot]com>
+ * @description - This is a type of coin flip lottery (instead of Lotto lottery).
+                  But instead of binary coin-flip, it can ternary, quaternary, ..., etc.
+ * @dev         - A completely decentralised lottery
  */
  contract DecentralisedLottery{
 
