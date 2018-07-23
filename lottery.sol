@@ -131,9 +131,9 @@ import "./safeMath.sol";
         require(!participatorInfo[_userID].profitReceived, "You've already received the profits!");
         if (participatorInfo[_userID].choice == winningChoice){
             if (participatorInfo[_userID].bettingTime < timeToDraw){            // Dont disburse profits to those who made bet after timeToDraw
-                (msg.sender).transfer(profitAmt);
                 participatorInfo[_userID].profitReceived = true;
                 alreadyApproved[msg.sender] = false;
+                (msg.sender).transfer(profitAmt);
             }
         }
     }
